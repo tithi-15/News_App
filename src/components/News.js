@@ -1,100 +1,90 @@
 import React, { Component } from 'react';
 import NewsItem from './NewsItem';
 import Spinner from './Spinner';
+import InfiniteScroll from 'react-infinite-scroll-component';
 
 export class News extends Component {
-    static defaultProps = {
-        pageSize: 20
-    }
+  static defaultProps = {
+    pageSize: 20,
+    country: 'us',
+    category: 'general'
+  }
 
-    constructor() {
-        super();
-        this.state = {
-            articles: [],
-            loading: false,
-            page: 1,
-            totalResults: 0
-        };
-    }
+  constructor(props) {
+    super(props);
+    this.state = {
+      articles: [],
+      loading: false,
+      page: 1,
+      totalResults: 0,
+      searchQuery: ''  // For search functionality
+    };
+  }
 
-    async componentDidMount() {
-        this.fetchArticles();
-    }
+  async fetchArticles() {
+    const { page, searchQuery } = this.state;
+    const { pageSize, country, category } = this.props;
+    let url = `https://newsapi.org/v2/top-headlines?country=${country}&category=${category}&q=${searchQuery}&apiKey=52e225d068fa42d69fc9ae7e156c4338&page=${page}&pageSize=${pageSize}`;
+    this.setState({ loading: true });
+    let data = await fetch(url);
+    let parsedData = await data.json();
+    this.setState({
+      articles: parsedData.articles,
+      loading: false,
+      totalResults: parsedData.totalResults
+    });
+  }
 
-    fetchArticles = async () => {
-        const { page } = this.state;
-        const { pageSize } = this.props;
-        let url = `https://newsapi.org/v2/top-headlines?country=us&category=business&apiKey=52e225d068fa42d69fc9ae7e156c4338&page=${page}&pageSize=${pageSize}`;
-        this.setState({ loading: true });
-        let data = await fetch(url);
-        let parsedData = await data.json();
-        this.setState({ 
-            articles: parsedData.articles, 
-            loading: false,
-            totalResults: parsedData.totalResults
-        });
-    }
+  async componentDidMount() {
+    this.fetchArticles();
+  }
 
-    handlePrevClick = async () => {
-        this.setState({ page: this.state.page - 1 }, () => {
-            this.fetchArticles();
-        });
-    }
+  handleSearch = (searchTerm) => {
+    this.setState({ searchQuery: searchTerm, page: 1 }, () => {
+      this.fetchArticles();
+    });
+  }
 
-    handleNextClick = async () => {
-        const { page, totalResults } = this.state;
-        const { pageSize } = this.props;
-        if (page + 1 > Math.ceil(totalResults / pageSize)) {
-            // Do nothing, we're on the last page
-        } else {
-            this.setState({ page: page + 1 }, () => {
-                this.fetchArticles();
-            });
-        }
-    }
+  fetchMoreData = async () => {
+    this.setState({ page: this.state.page + 1 });
+    const { pageSize, country, category } = this.props;
+    let url = `https://newsapi.org/v2/top-headlines?country=${country}&category=${category}&q=${this.state.searchQuery}&apiKey=52e225d068fa42d69fc9ae7e156c4338&page=${this.state.page}&pageSize=${pageSize}`;
+    let data = await fetch(url);
+    let parsedData = await data.json();
+    this.setState({
+      articles: this.state.articles.concat(parsedData.articles),
+      totalResults: parsedData.totalResults
+    });
+  };
 
-    render() {
-        const { articles, loading, page, totalResults } = this.state;
-        const { pageSize } = this.props;
-        return (
-            <div className="container my-3">
-                <h1 className="text-center">NewsMonkey - Top Headlines</h1>
-                {loading && <Spinner />}
-                <div className="row">
-                    {!loading && articles.map((element) => {
-                        return (
-                            <div className="col-md-4" key={element.url}>
-                                <NewsItem 
-                                    title={element.title ? element.title.slice(0, 45) : ""} 
-                                    description={element.description ? element.description.slice(0, 88) : ""} 
-                                    imgUrl={element.urlToImage} 
-                                    newsUrl={element.url}
-                                />
-                            </div>
-                        );
-                    })}
-                </div>
-                <div className="container d-flex justify-content-between">
-                    <button 
-                        type="button" 
-                        disabled={page <= 1} 
-                        className="btn btn-dark" 
-                        onClick={this.handlePrevClick}
-                    >
-                        &larr; Previous
-                    </button>
-                    <button 
-                        disabled={page + 1 > Math.ceil(totalResults / pageSize)}
-                        type="button" 
-                        className="btn btn-dark" 
-                        onClick={this.handleNextClick}
-                    >
-                        Next &rarr;
-                    </button>
-                </div>
-            </div>
-        );
-    }
+  render() {
+    const { articles, loading } = this.state;
+    return (
+      <div className="container my-3">
+        <h1 className="text-center">NewsMonkey - Top Headlines</h1>
+        {loading && <Spinner />}
+        <InfiniteScroll
+          dataLength={articles.length}
+          next={this.fetchMoreData}
+          hasMore={articles.length < this.state.totalResults}
+          loader={<Spinner />}
+        >
+          <div className="row">
+            {articles.map((element) => (
+              <div className="col-md-4" key={element.url}>
+                <NewsItem
+                  title={element.title ? element.title.slice(0, 45) : ""}
+                  description={element.description ? element.description.slice(0, 88) : ""}
+                  imgUrl={element.urlToImage}
+                  newsUrl={element.url}
+                />
+              </div>
+            ))}
+          </div>
+        </InfiniteScroll>
+      </div>
+    );
+  }
 }
 
 export default News;
